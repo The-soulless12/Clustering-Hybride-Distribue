@@ -1,2 +1,2 @@
 # Clustering-Hybride-Distribue
-Implémentation d’un algorithme de classification non supervisée combinant K-moyennes et K-médoïdes dans un environnement distribué, alliant rapidité de convergence et robustesse aux données bruitées.
+Implémentation en Python d’un algorithme de classification non supervisée combinant K-means et K-medoids dans un environnement distribué, alliant rapidité de convergence et robustesse aux perturbations.

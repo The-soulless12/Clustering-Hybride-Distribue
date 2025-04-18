@@ -1,25 +1,62 @@
 import numpy as np
+import pandas as pd
 from sklearn.metrics import accuracy_score
 from sklearn.preprocessing import LabelEncoder
 from scipy.stats import mode
 
-def accuracy(y_true, y_pred):
-    le = LabelEncoder()
-    y_true_encoded = le.fit_transform(y_true)
+def fonction_repartition(partition_data, K):
+    df_fake = pd.DataFrame(partition_data)
+    centroids, labels = kmeans(df_fake, K=K, return_centroids_only=True)
 
-    labels_matched = np.zeros_like(y_pred)
-    for cluster in np.unique(y_pred):
-        mask = y_pred == cluster
-        true_label_mode = mode(y_true_encoded[mask], keepdims=True).mode[0]
-        labels_matched[mask] = true_label_mode
+    medoids = []
+    for i in range(K):
+        cluster = partition_data[labels == i]
+        if len(cluster) == 0:
+            continue
+        centroid = centroids[i]
+        dists = np.linalg.norm(cluster - centroid, axis=1)
+        medoid = cluster[np.argmin(dists)]
+        medoids.append(medoid)
 
-    return accuracy_score(y_true_encoded, labels_matched)
+    return medoids
 
-def kmedoids(df, K=3, max_iter=100):
+def hybride_distribue(df, K=3, n_partitions=8):
+    data = df.select_dtypes(include=[float, int]).values
+    partitions = np.array_split(data, n_partitions)
+
+    results = [fonction_repartition(part, K) for part in partitions]
+    all_medoids = np.vstack(results)
+
+    reduced_medoids_df = pd.DataFrame(all_medoids)
+    reduced_centroids, reduced_labels = kmeans(reduced_medoids_df, K=K, return_centroids_only=True)
+
+    initial_medoids = []
+    for i in range(K):
+        cluster = all_medoids[reduced_labels == i]
+        if len(cluster) == 0:
+            continue
+        centroid = reduced_centroids[i]
+        dists = np.linalg.norm(cluster - centroid, axis=1)
+        medoid = cluster[np.argmin(dists)]
+        initial_medoids.append(medoid)
+    initial_medoids = np.array(initial_medoids)
+
+    distances = np.linalg.norm(data[:, np.newaxis] - initial_medoids, axis=2)
+    medoid_indices = np.argmin(distances, axis=0)
+
+    df_result = kmedoids(df.copy(), K=K, initial_medoids_indices=medoid_indices)
+    df_result = df_result.rename(columns={'KMedoids_Labels': 'Hybrid_Distributed_Labels'})
+
+    return df_result
+
+def kmedoids(df, K=3, max_iter=100, initial_medoids_indices=None):
     data = df.select_dtypes(include=[float, int]).values
     N = len(data)
 
-    medoid_indices = np.random.choice(N, K, replace=False)
+    if initial_medoids_indices is not None:
+        medoid_indices = np.array(initial_medoids_indices)
+    else:
+        medoid_indices = np.random.choice(N, K, replace=False)
 
     labels = np.zeros(N)
     for iteration in range(max_iter):
@@ -33,7 +70,7 @@ def kmedoids(df, K=3, max_iter=100):
         for i in range(N):
             if i in medoid_indices:
                 continue
-            for j in range(K):
+            for j in range(len(medoid_indices)):
                 new_medoids = medoid_indices.copy()
                 new_medoids[j] = i  
                 new_distances = np.linalg.norm(data[:, np.newaxis] - data[new_medoids], axis=2)
@@ -52,10 +89,11 @@ def kmedoids(df, K=3, max_iter=100):
     distances = np.linalg.norm(data[:, np.newaxis] - data[medoid_indices], axis=2)
     labels = np.argmin(distances, axis=1)
 
-    df['KMedoids_Labels'] = labels
-    return df
+    df_result = df.copy()
+    df_result['KMedoids_Labels'] = labels
+    return df_result
 
-def kmeans(df, K=3):
+def kmeans(df, K=3, return_centroids_only=False):
     data = df.select_dtypes(include=[float, int]).values
 
     random_indices = np.random.choice(len(data), size=K, replace=False)
@@ -76,5 +114,20 @@ def kmeans(df, K=3):
             if len(cluster_points) > 0:
                 centroids[i] = np.mean(cluster_points, axis=0)
 
-    df['KMeans_Labels'] = labels.astype(int)
-    return df
+    if return_centroids_only:
+        return centroids, labels
+    else:
+        df['KMeans_Labels'] = labels.astype(int)
+        return df
+
+def accuracy(y_true, y_pred):
+    le = LabelEncoder()
+    y_true_encoded = le.fit_transform(y_true)
+
+    labels_matched = np.zeros_like(y_pred)
+    for cluster in np.unique(y_pred):
+        mask = y_pred == cluster
+        true_label_mode = mode(y_true_encoded[mask], keepdims=True).mode[0]
+        labels_matched[mask] = true_label_mode
+
+    return accuracy_score(y_true_encoded, labels_matched)

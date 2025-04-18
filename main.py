@@ -1,7 +1,7 @@
 import tkinter as tk
 from tkinter import filedialog, ttk, messagebox
 import pandas as pd
-from clustering import kmeans, kmedoids, accuracy
+from clustering import kmeans, kmedoids, hybride_distribue, accuracy
 import time
 
 class Interface(tk.Tk):
@@ -128,6 +128,7 @@ class Interface(tk.Tk):
 
         df_copy1 = self.df.copy()
         df_copy2 = self.df.copy()
+        df_copy3 = self.df.copy()
 
         start_kmeans = time.time()
         df_kmeans = kmeans(df_copy1, K=3)
@@ -137,6 +138,10 @@ class Interface(tk.Tk):
         df_kmedoids = kmedoids(df_copy2, K=3)
         time_kmedoids = time.time() - start_kmedoids
 
+        start_hybride = time.time()
+        df_hybride = hybride_distribue(df_copy3, K=3, n_partitions=4)
+        time_hybride = time.time() - start_hybride
+
         if not any(col in self.tree["columns"] for col in ["K-means", "K-medoid", "Hybride"]):
             self.df["K-means"] = ""
             self.df["K-medoid"] = ""
@@ -145,6 +150,7 @@ class Interface(tk.Tk):
 
         self.df["K-means"] = df_kmeans["KMeans_Labels"]
         self.df["K-medoid"] = df_kmedoids["KMedoids_Labels"]
+        self.df["Hybride"] = df_hybride["Hybrid_Distributed_Labels"]
         self.afficher(self.df)
 
         true_col = None
@@ -153,8 +159,7 @@ class Interface(tk.Tk):
                 true_col = col
                 break
 
-        acc_kmeans = "Inconnue"
-        acc_kmedoids = "Inconnue"
+        acc_kmeans = acc_kmedoids = acc_hybride = "Inconnue"
 
         if true_col:
             try:
@@ -165,6 +170,10 @@ class Interface(tk.Tk):
                 acc_kmedoids = accuracy(self.df[true_col], df_kmedoids['KMedoids_Labels'])
             except Exception as e:
                 print("Erreur accuracy kmedoids :", e)
+            try:
+                acc_hybride = accuracy(self.df[true_col], df_hybride['Hybrid_Distributed_Labels'])
+            except Exception as e:
+                print("Erreur accuracy hybride :", e)
 
         if self.result_boxes:
             for widget in self.result_boxes[0].winfo_children():
@@ -178,6 +187,12 @@ class Interface(tk.Tk):
                     widget.config(text=f"Accuracy: {float(acc_kmedoids) * 100:.2f}%")
                 if isinstance(widget, tk.Label) and "Temps" in widget.cget("text"):
                     widget.config(text=f"Temps: {float(time_kmedoids):.5f}s")
+            
+            for widget in self.result_boxes[2].winfo_children():
+                if isinstance(widget, tk.Label) and "Accuracy" in widget.cget("text"):
+                    widget.config(text=f"Accuracy: {float(acc_hybride) * 100:.2f}%" if acc_hybride != "Inconnue" else "Accuracy: Inconnue")
+                if isinstance(widget, tk.Label) and "Temps" in widget.cget("text"):
+                    widget.config(text=f"Temps: {float(time_hybride):.5f}s")
 
 if __name__ == "__main__":
     app = Interface()

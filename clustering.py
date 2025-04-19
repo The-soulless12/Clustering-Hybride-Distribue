@@ -4,9 +4,13 @@ from sklearn.metrics import accuracy_score
 from sklearn.preprocessing import LabelEncoder
 from scipy.stats import mode
 
-def fonction_repartition(partition_data, K):
+def fonction_partitions(partition_data, K, initial_centroids=None):
     df_fake = pd.DataFrame(partition_data)
-    centroids, labels = kmeans(df_fake, K=K, return_centroids_only=True)
+    
+    if initial_centroids is not None:
+        centroids, labels = kmeans(df_fake, K=K, initial_centroids=initial_centroids, return_centroids_only=True)
+    else:
+        centroids, labels = kmeans(df_fake, K=K, return_centroids_only=True)
 
     medoids = []
     for i in range(K):
@@ -20,15 +24,19 @@ def fonction_repartition(partition_data, K):
 
     return medoids
 
-def hybride_distribue(df, K=3, n_partitions=8):
+def hybride_distribue(df, K, n_partitions=8, initial_centers=None):
     data = df.select_dtypes(include=[float, int]).values
     partitions = np.array_split(data, n_partitions)
 
-    results = [fonction_repartition(part, K) for part in partitions]
+    results = [fonction_partitions(part, K, initial_centroids=initial_centers) for part in partitions]
     all_medoids = np.vstack(results)
 
     reduced_medoids_df = pd.DataFrame(all_medoids)
-    reduced_centroids, reduced_labels = kmeans(reduced_medoids_df, K=K, return_centroids_only=True)
+
+    if initial_centers is not None:
+        reduced_centroids, reduced_labels = kmeans(reduced_medoids_df, K=K, initial_centroids=initial_centers, return_centroids_only=True)
+    else:
+        reduced_centroids, reduced_labels = kmeans(reduced_medoids_df, K=K, return_centroids_only=True)
 
     initial_medoids = []
     for i in range(K):
@@ -49,16 +57,16 @@ def hybride_distribue(df, K=3, n_partitions=8):
 
     return df_result
 
-def kmedoids(df, K=3, max_iter=100, initial_medoids_indices=None):
+def kmedoids(df, K, max_iter=100, initial_medoids_indices=None):
     data = df.select_dtypes(include=[float, int]).values
     N = len(data)
 
-    if initial_medoids_indices is not None:
-        medoid_indices = np.array(initial_medoids_indices)
-    else:
-        medoid_indices = np.random.choice(N, K, replace=False)
+    if initial_medoids_indices is None or len(initial_medoids_indices) != K:
+        raise ValueError("initial_medoids_indices must be a list of K valid indices.")
 
+    medoid_indices = np.array(initial_medoids_indices)
     labels = np.zeros(N)
+
     for iteration in range(max_iter):
         distances = np.linalg.norm(data[:, np.newaxis] - data[medoid_indices], axis=2)
         labels = np.argmin(distances, axis=1)
@@ -70,9 +78,9 @@ def kmedoids(df, K=3, max_iter=100, initial_medoids_indices=None):
         for i in range(N):
             if i in medoid_indices:
                 continue
-            for j in range(len(medoid_indices)):
+            for j in range(K):
                 new_medoids = medoid_indices.copy()
-                new_medoids[j] = i  
+                new_medoids[j] = i
                 new_distances = np.linalg.norm(data[:, np.newaxis] - data[new_medoids], axis=2)
                 new_labels = np.argmin(new_distances, axis=1)
                 new_cost = np.sum([np.linalg.norm(data[m] - data[new_medoids[new_labels[m]]]) for m in range(N)])
@@ -82,7 +90,7 @@ def kmedoids(df, K=3, max_iter=100, initial_medoids_indices=None):
                     improved = True
 
         if not improved:
-            break 
+            break
         else:
             medoid_indices = best_medoids
 
@@ -93,12 +101,13 @@ def kmedoids(df, K=3, max_iter=100, initial_medoids_indices=None):
     df_result['KMedoids_Labels'] = labels
     return df_result
 
-def kmeans(df, K=3, return_centroids_only=False):
+def kmeans(df, K, return_centroids_only=False, initial_centroids=None):
     data = df.select_dtypes(include=[float, int]).values
 
-    random_indices = np.random.choice(len(data), size=K, replace=False)
-    centroids = data[random_indices]
+    if initial_centroids is None or len(initial_centroids) != K:
+        raise ValueError("initial_centroids must be a list or array of K centroid vectors.")
 
+    centroids = np.array(initial_centroids)
     labels = -1 * np.ones(len(data))
     prev_labels = np.zeros(len(data))
 
@@ -117,8 +126,9 @@ def kmeans(df, K=3, return_centroids_only=False):
     if return_centroids_only:
         return centroids, labels
     else:
-        df['KMeans_Labels'] = labels.astype(int)
-        return df
+        df_result = df.copy()
+        df_result['KMeans_Labels'] = labels.astype(int)
+        return df_result
 
 def accuracy(y_true, y_pred):
     le = LabelEncoder()

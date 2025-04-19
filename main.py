@@ -1,6 +1,7 @@
 import tkinter as tk
 from tkinter import filedialog, ttk, messagebox
 import pandas as pd
+import numpy as np
 from clustering import kmeans, kmedoids, hybride_distribue, accuracy
 import time
 
@@ -41,6 +42,20 @@ class Interface(tk.Tk):
 
         self.bottom_frame = tk.Frame(self, bg="#ffe6f0")
         self.bottom_frame.pack(side=tk.BOTTOM, pady=20)
+
+        tk.Label(self.bottom_frame, text="Nombre de classes (K) :").grid(row=0, column=2, padx=10)
+        self.entry_k = tk.Entry(self.bottom_frame, width=5)
+        self.entry_k.grid(row=0, column=3)
+
+        self.btn_quit = tk.Button(self.bottom_frame, text="Quitter", command=self.quit)
+        self.btn_quit.grid(row=0, column=4, padx=10)
+
+        self.label_partitions = tk.Label(self.bottom_frame, text="Nombre de partitions :")
+        self.label_partitions.grid(row=1, column=2, padx=5)
+
+        self.entry_partitions = tk.Entry(self.bottom_frame, width=5)
+        self.entry_partitions.insert(0, "4")  
+        self.entry_partitions.grid(row=1, column=3, padx=5)
 
         self.btn_load = tk.Button(self.bottom_frame, text="Charger Dataset (Excel)", command=self.charger_excel)
         self.btn_load.grid(row=0, column=0, padx=10)
@@ -114,12 +129,11 @@ class Interface(tk.Tk):
             self.Resultats.destroy()
 
         self.result_boxes = []
+        self.df = self.df.iloc[:, :-3]
+        self.afficher(self.df)
 
         self.btn_load.grid()
         self.btn_cluster.grid()
-
-        if self.df is not None:
-            self.afficher(self.df)
 
     def lancer_clustering(self):
         if self.df is None:
@@ -130,16 +144,36 @@ class Interface(tk.Tk):
         df_copy2 = self.df.copy()
         df_copy3 = self.df.copy()
 
+        try:
+            K = int(self.entry_k.get())
+            if K <= 0:
+                raise ValueError
+        except ValueError:
+            messagebox.showerror("Erreur", "Veuillez entrer un nombre entier positif pour K.")
+            return
+
+        try:
+            n_partitions = int(self.entry_partitions.get())
+        except ValueError:
+            messagebox.showerror("Erreur", "Veuillez entrer un nombre valide de partitions.")
+            return
+
+        data_np = self.df.iloc[:, :-1].values  
+        initial_indices = np.random.choice(len(data_np), K, replace=False)
+        initial_centers = data_np[initial_indices]
+
         start_kmeans = time.time()
-        df_kmeans = kmeans(df_copy1, K=3)
+        df_kmeans = kmeans(df_copy1, K=K, initial_centroids=initial_centers)
         time_kmeans = time.time() - start_kmeans
 
         start_kmedoids = time.time()
-        df_kmedoids = kmedoids(df_copy2, K=3)
+        data_np2 = df_copy2.select_dtypes(include=[float, int]).values
+        initial_medoids_indices = [np.where((data_np2 == center).all(axis=1))[0][0] for center in initial_centers]
+        df_kmedoids = kmedoids(df_copy2, K=K, initial_medoids_indices=initial_medoids_indices)
         time_kmedoids = time.time() - start_kmedoids
 
         start_hybride = time.time()
-        df_hybride = hybride_distribue(df_copy3, K=3, n_partitions=4)
+        df_hybride = hybride_distribue(df_copy3, K=K, n_partitions=n_partitions, initial_centers=initial_centers)
         time_hybride = time.time() - start_hybride
 
         if not any(col in self.tree["columns"] for col in ["K-means", "K-medoid", "Hybride"]):

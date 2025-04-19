@@ -24,7 +24,7 @@ def fonction_partitions(partition_data, K, initial_centroids=None):
 
     return medoids
 
-def hybride_distribue(df, K, n_partitions=8, initial_centers=None):
+def hybride_distribue(df, K, n_partitions, initial_centers=None):
     data = df.select_dtypes(include=[float, int]).values
     partitions = np.array_split(data, n_partitions)
 

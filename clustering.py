@@ -57,6 +57,51 @@ def hybride_distribue(df, K, n_partitions, initial_centers=None):
 
     return df_result
 
+def fonction_partitions_2(partition_data, K, initial_medoids_indices=None):
+    df_fake = pd.DataFrame(partition_data)
+    
+    if initial_medoids_indices is not None:
+        df_result = kmedoids(df_fake, K=K, initial_medoids_indices=initial_medoids_indices)
+    else:
+        random_indices = np.random.choice(len(df_fake), K, replace=False)
+        df_result = kmedoids(df_fake, K=K, initial_medoids_indices=random_indices)
+
+    medoids = []
+    for i in range(K):
+        cluster = df_fake[df_result['KMedoids_Labels'] == i]
+        if len(cluster) == 0:
+            continue
+        centroid = np.mean(cluster, axis=0)
+        dists = np.linalg.norm(cluster - centroid, axis=1)
+        medoid = cluster.iloc[np.argmin(dists)].values
+
+        medoids.append(medoid)
+
+    return medoids
+
+def hybride_distribue_2(df, K, n_partitions, initial_centers=None):
+    data = df.select_dtypes(include=[float, int]).values
+    partitions = np.array_split(data, n_partitions)
+
+    results = [fonction_partitions_2(part, K) for part in partitions]
+    all_medoids = np.vstack(results)
+
+    reduced_medoids_df = pd.DataFrame(all_medoids)
+
+    if initial_centers is not None:
+        final_centroids, final_labels = kmeans(reduced_medoids_df, K=K, initial_centroids=initial_centers, return_centroids_only=True)
+    else:
+        random_centers = reduced_medoids_df.sample(K).values
+        final_centroids, final_labels = kmeans(reduced_medoids_df, K=K, initial_centroids=random_centers, return_centroids_only=True)
+
+    distances = np.linalg.norm(data[:, np.newaxis] - final_centroids, axis=2)
+    labels = np.argmin(distances, axis=1)
+
+    df_result = df.copy()
+    df_result['Hybrid_Distributed_Labels_2'] = labels
+
+    return df_result
+
 def kmedoids(df, K, max_iter=100, initial_medoids_indices=None):
     data = df.select_dtypes(include=[float, int]).values
     N = len(data)

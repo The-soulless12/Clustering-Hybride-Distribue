@@ -140,93 +140,118 @@ class Interface(tk.Tk):
             messagebox.showerror("Erreur", "Dataset manquant. Veuillez charger un fichier avant de lancer le clustering.")
             return
 
-        df_copy1 = self.df.copy()
-        df_copy2 = self.df.copy()
-        df_copy3 = self.df.copy()
+        popup = tk.Toplevel(self)
+        popup.title("Choisissez une méthode hybride")
+        popup.geometry("300x150")
+        popup.configure(bg="#ffe6f0")
+        popup.grab_set()
 
-        try:
-            K = int(self.entry_k.get())
-            if K <= 0:
-                raise ValueError
-        except ValueError:
-            messagebox.showerror("Erreur", "Veuillez entrer un nombre entier positif pour K.")
-            return
+        choix_var = tk.StringVar(value="hybride1")
 
-        try:
-            n_partitions = int(self.entry_partitions.get())
-        except ValueError:
-            messagebox.showerror("Erreur", "Veuillez entrer un nombre valide de partitions.")
-            return
+        tk.Label(popup, text="Sélectionnez la méthode hybride :", bg="#ffe6f0").pack(pady=10)
+        tk.Radiobutton(popup, text="Hybride 1", variable=choix_var, value="hybride1", bg="#ffe6f0").pack(anchor="w", padx=20)
+        tk.Radiobutton(popup, text="Hybride 2", variable=choix_var, value="hybride2", bg="#ffe6f0").pack(anchor="w", padx=20)
 
-        data_np = self.df.iloc[:, :-1].values  
-        initial_indices = np.random.choice(len(data_np), K, replace=False)
-        initial_centers = data_np[initial_indices]
+        def valider_choix():
+            choix = choix_var.get()
+            popup.destroy()
 
-        start_kmeans = time.time()
-        df_kmeans = kmeans(df_copy1, K=K, initial_centroids=initial_centers)
-        time_kmeans = time.time() - start_kmeans
+            df_copy1 = self.df.copy()
+            df_copy2 = self.df.copy()
+            df_copy3 = self.df.copy()
 
-        start_kmedoids = time.time()
-        data_np2 = df_copy2.select_dtypes(include=[float, int]).values
-        initial_medoids_indices = [np.where((data_np2 == center).all(axis=1))[0][0] for center in initial_centers]
-        df_kmedoids = kmedoids(df_copy2, K=K, initial_medoids_indices=initial_medoids_indices)
-        time_kmedoids = time.time() - start_kmedoids
-
-        start_hybride = time.time()
-        df_hybride = hybride_distribue_2(df_copy3, K=K, n_partitions=n_partitions, initial_centers=initial_centers)
-        time_hybride = time.time() - start_hybride
-
-        if not any(col in self.tree["columns"] for col in ["K-means", "K-medoid", "Hybride"]):
-            self.df["K-means"] = ""
-            self.df["K-medoid"] = ""
-            self.df["Hybride"] = ""
-            self.resultats()
-
-        self.df["K-means"] = df_kmeans["KMeans_Labels"]
-        self.df["K-medoid"] = df_kmedoids["KMedoids_Labels"]
-        self.df["Hybride"] = df_hybride["Hybrid_Distributed_Labels_2"]
-        self.afficher(self.df)
-
-        true_col = None
-        for col in self.df.columns:
-            if self.df[col].dtype == 'object' and self.df[col].nunique() < 20:
-                true_col = col
-                break
-
-        acc_kmeans = acc_kmedoids = acc_hybride = "Inconnue"
-
-        if true_col:
             try:
-                acc_kmeans = accuracy(self.df[true_col], df_kmeans['KMeans_Labels'])
-            except Exception as e:
-                print("Erreur accuracy kmeans :", e)
-            try:
-                acc_kmedoids = accuracy(self.df[true_col], df_kmedoids['KMedoids_Labels'])
-            except Exception as e:
-                print("Erreur accuracy kmedoids :", e)
-            try:
-                acc_hybride = accuracy(self.df[true_col], df_hybride['Hybrid_Distributed_Labels_2'])
-            except Exception as e:
-                print("Erreur accuracy hybride :", e)
+                K = int(self.entry_k.get())
+                if K <= 0:
+                    raise ValueError
+            except ValueError:
+                messagebox.showerror("Erreur", "Veuillez entrer un nombre entier positif pour K.")
+                return
 
-        if self.result_boxes:
-            for widget in self.result_boxes[0].winfo_children():
-                if isinstance(widget, tk.Label) and "Accuracy" in widget.cget("text"):
-                    widget.config(text=f"Accuracy: {float(acc_kmeans) * 100:.2f}%")
-                if isinstance(widget, tk.Label) and "Temps" in widget.cget("text"):
-                    widget.config(text=f"Temps: {float(time_kmeans):.5f}s")
-            
-            for widget in self.result_boxes[1].winfo_children():
-                if isinstance(widget, tk.Label) and "Accuracy" in widget.cget("text"):
-                    widget.config(text=f"Accuracy: {float(acc_kmedoids) * 100:.2f}%")
-                if isinstance(widget, tk.Label) and "Temps" in widget.cget("text"):
-                    widget.config(text=f"Temps: {float(time_kmedoids):.5f}s")
-            
-            for widget in self.result_boxes[2].winfo_children():
-                if isinstance(widget, tk.Label) and "Accuracy" in widget.cget("text"):
-                    widget.config(text=f"Accuracy: {float(acc_hybride) * 100:.2f}%" if acc_hybride != "Inconnue" else "Accuracy: Inconnue")
-                if isinstance(widget, tk.Label) and "Temps" in widget.cget("text"):
-                    widget.config(text=f"Temps: {float(time_hybride):.5f}s")
+            try:
+                n_partitions = int(self.entry_partitions.get())
+            except ValueError:
+                messagebox.showerror("Erreur", "Veuillez entrer un nombre valide de partitions.")
+                return
+
+            data_np = self.df.iloc[:, :-1].values  
+            initial_indices = np.random.choice(len(data_np), K, replace=False)
+            initial_centers = data_np[initial_indices]
+
+            # KMeans
+            start_kmeans = time.time()
+            df_kmeans = kmeans(df_copy1, K=K, initial_centroids=initial_centers)
+            time_kmeans = time.time() - start_kmeans
+
+            # KMedoids
+            start_kmedoids = time.time()
+            data_np2 = df_copy2.select_dtypes(include=[float, int]).values
+            initial_medoids_indices = [np.where((data_np2 == center).all(axis=1))[0][0] for center in initial_centers]
+            df_kmedoids = kmedoids(df_copy2, K=K, initial_medoids_indices=initial_medoids_indices)
+            time_kmedoids = time.time() - start_kmedoids
+
+            # Hybride selon le choix
+            start_hybride = time.time()
+            if choix == "hybride1":
+                df_hybride = hybride_distribue(df_copy3, K=K, n_partitions=n_partitions, initial_centers=initial_centers)
+            else:
+                df_hybride = hybride_distribue_2(df_copy3, K=K, n_partitions=n_partitions, initial_centers=initial_centers)
+            time_hybride = time.time() - start_hybride
+
+            if not any(col in self.tree["columns"] for col in ["K-means", "K-medoid", "Hybride"]):
+                self.df["K-means"] = ""
+                self.df["K-medoid"] = ""
+                self.df["Hybride"] = ""
+                self.resultats()
+
+            self.df["K-means"] = df_kmeans["KMeans_Labels"]
+            self.df["K-medoid"] = df_kmedoids["KMedoids_Labels"]
+            self.df["Hybride"] = df_hybride["Hybrid_Distributed_Labels" if choix == "hybride1" else "Hybrid_Distributed_Labels_2"]
+
+            self.afficher(self.df)
+
+            true_col = None
+            for col in self.df.columns:
+                if self.df[col].dtype == 'object' and self.df[col].nunique() < 20:
+                    true_col = col
+                    break
+
+            acc_kmeans = acc_kmedoids = acc_hybride = "Inconnue"
+
+            if true_col:
+                try:
+                    acc_kmeans = accuracy(self.df[true_col], df_kmeans['KMeans_Labels'])
+                except Exception as e:
+                    print("Erreur accuracy kmeans :", e)
+                try:
+                    acc_kmedoids = accuracy(self.df[true_col], df_kmedoids['KMedoids_Labels'])
+                except Exception as e:
+                    print("Erreur accuracy kmedoids :", e)
+                try:
+                    acc_hybride = accuracy(self.df[true_col], df_hybride['Hybrid_Distributed_Labels' if choix == "hybride1" else 'Hybrid_Distributed_Labels_2'])
+                except Exception as e:
+                    print("Erreur accuracy hybride :", e)
+
+            if self.result_boxes:
+                for widget in self.result_boxes[0].winfo_children():
+                    if isinstance(widget, tk.Label) and "Accuracy" in widget.cget("text"):
+                        widget.config(text=f"Accuracy: {float(acc_kmeans) * 100:.2f}%")
+                    if isinstance(widget, tk.Label) and "Temps" in widget.cget("text"):
+                        widget.config(text=f"Temps: {float(time_kmeans):.5f}s")
+                
+                for widget in self.result_boxes[1].winfo_children():
+                    if isinstance(widget, tk.Label) and "Accuracy" in widget.cget("text"):
+                        widget.config(text=f"Accuracy: {float(acc_kmedoids) * 100:.2f}%")
+                    if isinstance(widget, tk.Label) and "Temps" in widget.cget("text"):
+                        widget.config(text=f"Temps: {float(time_kmedoids):.5f}s")
+                
+                for widget in self.result_boxes[2].winfo_children():
+                    if isinstance(widget, tk.Label) and "Accuracy" in widget.cget("text"):
+                        widget.config(text=f"Accuracy: {float(acc_hybride) * 100:.2f}%" if acc_hybride != "Inconnue" else "Accuracy: Inconnue")
+                    if isinstance(widget, tk.Label) and "Temps" in widget.cget("text"):
+                        widget.config(text=f"Temps: {float(time_hybride):.5f}s")
+
+        tk.Button(popup, text="Valider", command=valider_choix).pack(pady=10)
 
 if __name__ == "__main__":
     app = Interface()

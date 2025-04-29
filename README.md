@@ -1,5 +1,5 @@
 # Clustering-Hybride-Distribue
-Implémentation en Python d’un algorithme de classification non supervisée combinant K-means et K-medoids dans un environnement distribué, alliant les avantages des deux méthodes.
+Implémentation en Python d’algorithmes de classification non supervisée combinant K-means et K-medoids dans un environnement distribué, alliant les avantages des deux méthodes.
 
 # Fonctionnalités
 - Possibilité d'exécuter trois types d'algorithmes de clustering : K-means, K-medoids ainsi qu'un algorithme hybride distribué.
